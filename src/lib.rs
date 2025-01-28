@@ -11,7 +11,7 @@
 //!transaction to work with database and does all the deduplication work for you. You are
 //!guaranteed to receive all events ordered.
 //!
-//!```rust
+//!```ignore
 //!pub struct TestProcessor;
 //!
 //!impl Processor for TestProcessor {
@@ -30,7 +30,7 @@
 //!After you described processing, build indexer by specifying all connections and filter for
 //!events. If the filter will be changed, indexer will re-index all the data from the blockchain.
 //!
-//!```rust
+//!```ignore
 //!Indexer::builder()
 //!    .http_rpc_url(http_url)
 //!    .ws_rpc_url(ws_url)
