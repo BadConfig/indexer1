@@ -12,6 +12,7 @@ use alloy::{
 };
 use anyhow::Result;
 use sqlx::SqlitePool;
+use tokio_util::sync::CancellationToken;
 
 // Codegen from embedded Solidity code and precompiled bytecode.
 // solc v0.8.26; solc Counter.sol --via-ir --optimize --bin
@@ -22,7 +23,9 @@ sol!(
     "src/tests/artifacts/MockERC20.json"
 );
 
-pub struct TestProcessor;
+pub struct TestProcessor {
+    cancel_token: CancellationToken,
+}
 
 impl Processor for TestProcessor {
     async fn process<DB: sqlx::Database>(
@@ -32,6 +35,7 @@ impl Processor for TestProcessor {
         _chain_id: u64,
     ) -> anyhow::Result<()> {
         println!("{logs:?}");
+        self.cancel_token.cancel();
         Ok(())
     }
 }
@@ -63,6 +67,8 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
     let ws_url = anvil.ws_endpoint_url().clone();
     let http_url = anvil.endpoint_url().clone();
 
+    let token = CancellationToken::new();
+
     Indexer::builder()
         .http_rpc_url(http_url)
         .ws_rpc_url(ws_url)
@@ -71,12 +77,14 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
             MockERC20::Transfer::SIGNATURE,
             MockERC20::Approval::SIGNATURE,
         ]))
-        .set_processor(TestProcessor)
+        .set_processor(TestProcessor {
+            cancel_token: token.clone(),
+        })
         .sqlite_storage(pool)
         .build()
         .await
         .unwrap()
-        .run()
+        .run(token)
         .await?;
     Ok(())
 }

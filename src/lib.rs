@@ -56,6 +56,7 @@ pub use indexer1::{Indexer, Processor};
 pub use sqlx;
 pub use storage::LogStorage;
 pub use tokio;
+pub use tokio_util;
 
 mod builder;
 mod indexer1;

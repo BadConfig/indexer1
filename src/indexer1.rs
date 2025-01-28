@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{Database, Transaction};
 use tokio::time::interval;
 use tokio_stream::{wrappers::IntervalStream, StreamExt as StreamExtTokio};
+use tokio_util::sync::CancellationToken;
 
 use crate::{builder::IndexerBuilder, storage::LogStorage};
 
@@ -110,7 +111,7 @@ impl<P: Processor, S: LogStorage> Indexer<P, S> {
         })
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
+    pub async fn run(mut self, cancel_token: CancellationToken) -> anyhow::Result<()> {
         let poll_interval = IntervalStream::new(interval(self.fetch_interval));
         let ws_watcher = self.spawn_ws_watcher().await?;
         tokio::pin!(ws_watcher);
@@ -121,6 +122,7 @@ impl<P: Processor, S: LogStorage> Indexer<P, S> {
             tokio::select! {
                 Some(_) = ws_watcher.next() => {}
                 Some(_) = poll_interval.next() => {}
+                _ = cancel_token.cancelled() => break,
                 else => break,
             }
 
