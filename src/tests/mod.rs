@@ -12,6 +12,7 @@ use alloy::{
 };
 use anyhow::Result;
 use sqlx::{Database, SqlitePool};
+use tokio::sync::mpsc;
 
 // Codegen from embedded Solidity code and precompiled bytecode.
 // solc v0.8.26; solc Counter.sol --via-ir --optimize --bin
@@ -22,7 +23,9 @@ sol!(
     "src/tests/artifacts/MockERC20.json"
 );
 
-pub struct TestProcessor;
+pub struct TestProcessor {
+    terminate_tx: mpsc::UnboundedSender<()>,
+}
 
 impl<'a, DB: Database> Processor<sqlx::Transaction<'a, DB>> for TestProcessor {
     async fn process(
@@ -34,6 +37,7 @@ impl<'a, DB: Database> Processor<sqlx::Transaction<'a, DB>> for TestProcessor {
         _chain_id: u64,
     ) -> anyhow::Result<()> {
         println!("{logs:?}");
+        self.terminate_tx.send(())?;
         Ok(())
     }
 }
@@ -65,6 +69,8 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
     let ws_url = anvil.ws_endpoint_url().clone();
     let http_url = anvil.endpoint_url().clone();
 
+    let (terminate_tx, mut terminate_rx) = mpsc::unbounded_channel();
+
     let handle = tokio::spawn(async move {
         Indexer::builder()
             .http_rpc_url(http_url)
@@ -75,7 +81,7 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
                 MockERC20::Approval::SIGNATURE,
             ]))
             .sqlite_storage(pool)
-            .set_processor(TestProcessor)
+            .set_processor(TestProcessor { terminate_tx })
             .build()
             .await
             .unwrap()
@@ -84,7 +90,7 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
             .unwrap();
     });
 
-    // тут нужно какие то ассерты по тесту делать
+    terminate_rx.recv().await;
     handle.abort();
     Ok(())
 }
