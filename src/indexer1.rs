@@ -76,6 +76,7 @@ pub struct Indexer<S: LogStorage, P: Processor<S::Transaction>> {
     provider: Box<dyn Provider>,
     ws_provider: Option<Box<dyn Provider>>,
     fetch_interval: Duration,
+    block_range_limit: Option<u64>,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
@@ -90,6 +91,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         ws_provider: Option<Box<dyn Provider>>,
         fetch_interval: Duration,
         storage: S,
+        block_range_limit: Option<u64>,
     ) -> anyhow::Result<Self> {
         let chain_id = provider.get_chain_id().await?;
 
@@ -106,6 +108,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             provider,
             ws_provider,
             fetch_interval,
+            block_range_limit,
         })
     }
 
@@ -142,8 +145,14 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
     }
 
     async fn handle_tick(&mut self) -> anyhow::Result<()> {
-        let to_block = self.provider.get_block_number().await?;
         let from_block = self.last_observed_block + 1;
+
+        let latest_block = self.provider.get_block_number().await?;
+        let to_block = self
+            .block_range_limit
+            .map(|block_range_limit| latest_block.min(from_block + block_range_limit))
+            .unwrap_or(latest_block);
+
         let filter = self
             .filter
             .clone()
