@@ -2,11 +2,14 @@
 use std::time::Duration;
 
 use alloy::{
+    eips::BlockNumberOrTag,
     primitives::keccak256,
     providers::Provider,
+    rpc::types::BlockTransactionsKind,
     rpc::types::{Filter, Log},
     sol_types::SolValue,
 };
+use anyhow::Context;
 use futures::{stream, Future, Stream, StreamExt};
 use sha2::{Digest, Sha256};
 use tokio::time::interval;
@@ -146,8 +149,13 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
 
     async fn handle_tick(&mut self) -> anyhow::Result<()> {
         let from_block = self.last_observed_block + 1;
-
-        let latest_block = self.provider.get_block_number().await?;
+        let latest_block = self
+            .provider
+            .get_block_by_number(BlockNumberOrTag::Finalized, BlockTransactionsKind::Hashes)
+            .await?
+            .context("No finalized block")?
+            .header
+            .number;
         let to_block = self
             .block_range_limit
             .map(|block_range_limit| latest_block.min(from_block + block_range_limit))
@@ -157,7 +165,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             .filter
             .clone()
             .from_block(from_block)
-            .to_block(to_block);
+            .to_block(alloy::eips::BlockNumberOrTag::Finalized);
 
         log::debug!("Fetching logs from {} to {}", from_block, to_block);
         let logs = self.provider.get_logs(&filter).await?;
