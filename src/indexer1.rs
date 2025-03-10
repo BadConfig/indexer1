@@ -165,7 +165,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             .filter
             .clone()
             .from_block(from_block)
-            .to_block(alloy::eips::BlockNumberOrTag::Finalized);
+            .to_block(alloy::eips::BlockNumberOrTag::Number(to_block));
 
         log::debug!("Fetching logs from {} to {}", from_block, to_block);
         let logs = self.provider.get_logs(&filter).await?;
