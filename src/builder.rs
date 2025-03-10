@@ -22,6 +22,7 @@ pub struct IndexerBuilder<S: LogStorage, P: Processor<S::Transaction>> {
     processor: Option<P>,
     storage: Option<S>,
     block_range_limit: Option<u64>,
+    first_fetch_block: Option<u64>,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, P> {
@@ -34,6 +35,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, 
             processor: None,
             storage: None,
             block_range_limit: None,
+            first_fetch_block: None,
         }
     }
 }
@@ -70,6 +72,11 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
 
     pub fn block_range_limit(mut self, limit: u64) -> Self {
         self.block_range_limit = Some(limit);
+        self
+    }
+
+    pub fn first_fetch_block(mut self, first_fetch_block: u64) -> Self {
+        self.first_fetch_block = Some(first_fetch_block);
         self
     }
 
@@ -113,6 +120,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
 
         let storage = self.storage.ok_or(anyhow!("Storage is missing"))?;
 
+        
         Indexer::new(
             processor,
             filter,
@@ -121,6 +129,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
             fetch_interval,
             storage,
             self.block_range_limit,
+            self.first_fetch_block,
         )
         .await
     }

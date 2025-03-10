@@ -80,6 +80,7 @@ pub struct Indexer<S: LogStorage, P: Processor<S::Transaction>> {
     ws_provider: Option<Box<dyn Provider>>,
     fetch_interval: Duration,
     block_range_limit: Option<u64>,
+    first_fetch_block: Option<u64>,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
@@ -95,6 +96,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         fetch_interval: Duration,
         storage: S,
         block_range_limit: Option<u64>,
+        first_fetch_block: Option<u64>,
     ) -> anyhow::Result<Self> {
         let chain_id = provider.get_chain_id().await?;
 
@@ -112,6 +114,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             ws_provider,
             fetch_interval,
             block_range_limit,
+            first_fetch_block,
         })
     }
 
@@ -148,7 +151,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
     }
 
     async fn handle_tick(&mut self) -> anyhow::Result<()> {
-        let from_block = self.last_observed_block + 1;
+        let from_block = (self.last_observed_block + 1).max(self.first_fetch_block.unwrap_or(self.last_observed_block));
         let latest_block = self
             .provider
             .get_block_by_number(BlockNumberOrTag::Finalized, BlockTransactionsKind::Hashes)
@@ -165,7 +168,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             .filter
             .clone()
             .from_block(from_block)
-            .to_block(alloy::eips::BlockNumberOrTag::Finalized);
+            .to_block(alloy::eips::BlockNumberOrTag::Number(to_block));
 
         log::debug!("Fetching logs from {} to {}", from_block, to_block);
         let logs = self.provider.get_logs(&filter).await?;
