@@ -1,6 +1,6 @@
 [package]
 name = "indexer1"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2021"
 authors = ["BadConfig <array.clean@gmail.com>"]
 description = "A library that is used to collect events from EVM compatible blockchain"
@@ -8,6 +8,7 @@ repository = "https://github.com/badconfig/indexer1"
 license = "MIT OR Apache-2.0"
 
 [features]
+default = ["sqlx-bigdecimal"]
 sqlx-bigdecimal = ["sqlx/bigdecimal"]
 
 [dependencies]
