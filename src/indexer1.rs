@@ -156,6 +156,9 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             .context("No finalized block")?
             .header
             .number;
+        if self.last_observed_block == latest_block {
+            return Ok(()); // in case of no new blocks
+        }
         let to_block = self
             .block_range_limit
             .map(|block_range_limit| latest_block.min(from_block + block_range_limit))
