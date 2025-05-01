@@ -1,6 +1,6 @@
 [package]
 name = "indexer1"
-version = "0.2.8"
+version = "0.2.9"
 edition = "2021"
 authors = ["BadConfig <array.clean@gmail.com>"]
 description = "A library that is used to collect events from EVM compatible blockchain"
@@ -15,7 +15,7 @@ sqlx-bigdecimal = ["sqlx/bigdecimal"]
 tokio = { version = "1.34.0", features = ["full"] }
 anyhow = "1.0.79"
 
-alloy = { version = "0.11.1", default-features = false, features = [
+alloy = { version = "0.14.0", default-features = false, features = [
     "serde",
     "reqwest-rustls-tls",
     "essentials",

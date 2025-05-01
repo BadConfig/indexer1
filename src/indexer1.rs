@@ -5,7 +5,6 @@ use alloy::{
     eips::BlockNumberOrTag,
     primitives::keccak256,
     providers::Provider,
-    rpc::types::BlockTransactionsKind,
     rpc::types::{Filter, Log},
     sol_types::SolValue,
 };
@@ -151,7 +150,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         let from_block = self.last_observed_block + 1;
         let latest_block = self
             .provider
-            .get_block_by_number(BlockNumberOrTag::Finalized, BlockTransactionsKind::Hashes)
+            .get_block_by_number(BlockNumberOrTag::Finalized)
             .await?
             .context("No finalized block")?
             .header
