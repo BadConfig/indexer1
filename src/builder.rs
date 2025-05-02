@@ -93,12 +93,12 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
             .http_provider
             .ok_or(anyhow!("Http porvider is missing"))?;
 
-        let http_provider = ProviderBuilder::new().on_http(http_url);
+        let http_provider = ProviderBuilder::new().connect_http(http_url);
 
         let ws_provider: Option<Box<dyn Provider>> = match self.ws_provider {
             Some(url) => Some(Box::new(
                 ProviderBuilder::new()
-                    .on_ws(WsConnect::new(url.to_string()))
+                    .connect_ws(WsConnect::new(url.to_string()))
                     .await
                     .with_context(|| anyhow!("Failed to connect to rpc via WS"))?,
             )),

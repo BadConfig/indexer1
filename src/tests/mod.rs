@@ -53,7 +53,7 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
 
     // Create a provider.
     let ws = alloy::providers::WsConnect::new(anvil.ws_endpoint());
-    let provider = ProviderBuilder::new().wallet(wallet).on_ws(ws).await?;
+    let provider = ProviderBuilder::new().wallet(wallet).connect_ws(ws).await?;
 
     let contract = MockERC20::deploy(
         provider,
