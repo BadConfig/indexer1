@@ -1,4 +1,5 @@
 use alloy::rpc::types::{Filter, Log};
+use anyhow::bail;
 use sqlx::{Pool, Postgres, Row};
 
 use crate::indexer1::{filter_id, Processor};
@@ -17,6 +18,24 @@ impl LogStorage for Pool<Postgres> {
         log_processor: &mut P,
     ) -> anyhow::Result<()> {
         let mut transaction = self.begin().await?;
+
+        let prev_block_in_db: u64 = sqlx::query(include_str!("sql/get_filter_for_update.sql"))
+            .bind(filter_id)
+            .fetch_one(&mut *transaction)
+            .await
+            .map(|v| v.get::<i64, _>("last_observed_block"))?
+            .try_into()?;
+
+        if prev_saved_block != prev_block_in_db {
+            bail!("Inconsistency in block commitement");
+        }
+
+        sqlx::query(include_str!("sql/update_filter.sql"))
+            .bind::<i64>(new_saved_block.try_into()?)
+            .bind(filter_id)
+            .execute(&mut *transaction)
+            .await?;
+
         log_processor
             .process(
                 logs,
@@ -25,11 +44,6 @@ impl LogStorage for Pool<Postgres> {
                 new_saved_block,
                 chain_id,
             )
-            .await?;
-        sqlx::query(include_str!("sql/update_filter.sql"))
-            .bind::<i64>(new_saved_block.try_into()?)
-            .bind(filter_id)
-            .execute(&mut *transaction)
             .await?;
 
         transaction.commit().await.map_err(Into::into)

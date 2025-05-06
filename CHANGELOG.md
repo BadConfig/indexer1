@@ -1,4 +1,13 @@
 # Changelog
+---
+
+## Version: 0.2.11
+## Date: 05-07-2025
+## Title: race safety
+
+### Added race safetry to database. 
+Now if couple of indexers will be run simultaniously on the same data, one of them will fail updating, keeping indexer consistent.
+This is reached by adding from block check, where ```SELECT _____ FOR UPDATE``` is used as as query to prevent races.
 
 ---
 
