@@ -26,7 +26,7 @@ impl LogStorage for Pool<Postgres> {
             .map(|v| v.get::<i64, _>("last_observed_block"))?
             .try_into()?;
 
-        if prev_saved_block != prev_block_in_db {
+        if prev_saved_block != prev_block_in_db + 1 {
             bail!("Inconsistency in block commitement");
         }
 
