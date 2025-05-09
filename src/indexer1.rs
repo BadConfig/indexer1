@@ -79,6 +79,7 @@ pub struct Indexer<S: LogStorage, P: Processor<S::Transaction>> {
     ws_provider: Option<Box<dyn Provider>>,
     fetch_interval: Duration,
     block_range_limit: Option<u64>,
+    finality_level: BlockNumberOrTag,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
@@ -94,6 +95,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         fetch_interval: Duration,
         storage: S,
         block_range_limit: Option<u64>,
+        finality_level: BlockNumberOrTag,
     ) -> anyhow::Result<Self> {
         let chain_id = provider.get_chain_id().await?;
 
@@ -111,6 +113,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             ws_provider,
             fetch_interval,
             block_range_limit,
+            finality_level,
         })
     }
 
@@ -150,7 +153,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         let from_block = self.last_observed_block + 1;
         let latest_block = self
             .provider
-            .get_block_by_number(BlockNumberOrTag::Finalized)
+            .get_block_by_number(self.finality_level)
             .await?
             .context("No finalized block")?
             .header
