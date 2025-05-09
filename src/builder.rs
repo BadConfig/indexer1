@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use alloy::{
+    eips::BlockNumberOrTag,
     providers::{Provider, ProviderBuilder, WsConnect},
     rpc::types::Filter,
     transports::http::reqwest::Url,
@@ -22,6 +23,7 @@ pub struct IndexerBuilder<S: LogStorage, P: Processor<S::Transaction>> {
     processor: Option<P>,
     storage: Option<S>,
     block_range_limit: Option<u64>,
+    finality_level: BlockNumberOrTag,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, P> {
@@ -34,6 +36,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, 
             processor: None,
             storage: None,
             block_range_limit: None,
+            finality_level: BlockNumberOrTag::Finalized,
         }
     }
 }
@@ -88,6 +91,14 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
         self
     }
 
+    pub fn finality_level(mut self, level: BlockNumberOrTag) -> Self {
+        if let BlockNumberOrTag::Number(_) = level {
+            panic!("Block number tag is not supported");
+        }
+        self.finality_level = level;
+        self
+    }
+
     pub async fn build(self) -> anyhow::Result<Indexer<S, P>> {
         let http_url = self
             .http_provider
@@ -121,6 +132,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
             fetch_interval,
             storage,
             self.block_range_limit,
+            self.finality_level,
         )
         .await
     }
