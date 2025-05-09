@@ -29,6 +29,27 @@ pub trait Processor<T> {
     ) -> impl Future<Output = anyhow::Result<()>>;
 }
 
+#[derive(Debug, Clone, Copy)]
+/// Finality level for the indexer. It defines which block to use as a reference point for
+/// fetching logs.
+pub enum FinalityLevel {
+    Finalized,
+    Safe,
+    Latest,
+    Pending,
+}
+
+impl From<FinalityLevel> for BlockNumberOrTag {
+    fn from(level: FinalityLevel) -> Self {
+        match level {
+            FinalityLevel::Finalized => BlockNumberOrTag::Finalized,
+            FinalityLevel::Safe => BlockNumberOrTag::Safe,
+            FinalityLevel::Latest => BlockNumberOrTag::Latest,
+            FinalityLevel::Pending => BlockNumberOrTag::Pending,
+        }
+    }
+}
+
 pub fn filter_id(filter: &Filter, chain_id: u64) -> String {
     let mut hasher = Sha256::new();
     hasher.update(chain_id.abi_encode());
@@ -95,7 +116,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         fetch_interval: Duration,
         storage: S,
         block_range_limit: Option<u64>,
-        finality_level: BlockNumberOrTag,
+        finality_level: FinalityLevel,
     ) -> anyhow::Result<Self> {
         let chain_id = provider.get_chain_id().await?;
 
@@ -113,7 +134,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             ws_provider,
             fetch_interval,
             block_range_limit,
-            finality_level,
+            finality_level: finality_level.into(),
         })
     }
 

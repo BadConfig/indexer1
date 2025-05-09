@@ -2,7 +2,6 @@
 use std::time::Duration;
 
 use alloy::{
-    eips::BlockNumberOrTag,
     providers::{Provider, ProviderBuilder, WsConnect},
     rpc::types::Filter,
     transports::http::reqwest::Url,
@@ -11,7 +10,7 @@ use anyhow::{anyhow, Context};
 use sqlx::{PgPool, Postgres, Sqlite, SqlitePool};
 
 use crate::{
-    indexer1::{Indexer, Processor},
+    indexer1::{FinalityLevel, Indexer, Processor},
     storage::LogStorage,
 };
 
@@ -23,7 +22,7 @@ pub struct IndexerBuilder<S: LogStorage, P: Processor<S::Transaction>> {
     processor: Option<P>,
     storage: Option<S>,
     block_range_limit: Option<u64>,
-    finality_level: BlockNumberOrTag,
+    finality_level: FinalityLevel,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, P> {
@@ -36,7 +35,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, 
             processor: None,
             storage: None,
             block_range_limit: None,
-            finality_level: BlockNumberOrTag::Finalized,
+            finality_level: FinalityLevel::Finalized,
         }
     }
 }
@@ -91,10 +90,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
         self
     }
 
-    pub fn finality_level(mut self, level: BlockNumberOrTag) -> Self {
-        if let BlockNumberOrTag::Number(_) = level {
-            panic!("Block number tag is not supported");
-        }
+    pub fn finality_level(mut self, level: FinalityLevel) -> Self {
         self.finality_level = level;
         self
     }
