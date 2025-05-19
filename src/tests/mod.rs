@@ -56,7 +56,7 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
     let provider = ProviderBuilder::new().wallet(wallet).connect_ws(ws).await?;
 
     let contract = MockERC20::deploy(
-        provider,
+        provider.clone(),
         "name".to_string(),
         "symbol".to_string(),
         U256::from(10000),
@@ -72,13 +72,12 @@ async fn happy_path(pool: SqlitePool) -> Result<()> {
 
     let contract_address = *contract.address();
     let ws_url = anvil.ws_endpoint_url().clone();
-    let http_url = anvil.endpoint_url().clone();
 
     let (terminate_tx, mut terminate_rx) = mpsc::unbounded_channel();
 
     let handle = tokio::spawn(async move {
         Indexer::builder()
-            .http_rpc_url(http_url)
+            .http_provider(Box::new(provider))
             .ws_rpc_url(ws_url)
             .fetch_interval(Duration::from_secs(10))
             .filter(Filter::new().address(contract_address).events([

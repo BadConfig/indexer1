@@ -66,8 +66,8 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
         self
     }
 
-    pub fn http_provider<H: Into<Box<dyn Provider>>>(mut self, p: H) -> Self {
-        self.http_provider_client = Some(p.into());
+    pub fn http_provider(mut self, p: Box<dyn Provider>) -> Self {
+        self.http_provider_client = Some(p);
         self
     }
 
@@ -91,13 +91,13 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
         self
     }
 
-    pub fn ws_provider<W: Into<Box<dyn Provider>>>(mut self, p: W) -> Self {
-        self.ws_provider_client = Some(p.into());
+    pub fn ws_provider(mut self, p: Box<dyn Provider>) -> Self {
+        self.ws_provider_client = Some(p);
         self
     }
 
-    pub fn ws_provider_opt<W: Into<Box<dyn Provider>>>(mut self, p: Option<W>) -> Self {
-        self.ws_provider_client = p.map(Into::into);
+    pub fn ws_provider_opt(mut self, p: Option<Box<dyn Provider>>) -> Self {
+        self.ws_provider_client = p;
         self
     }
 
