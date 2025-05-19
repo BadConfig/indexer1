@@ -15,9 +15,12 @@ use crate::{
 };
 
 pub struct IndexerBuilder<S: LogStorage, P: Processor<S::Transaction>> {
-    http_provider: Option<Url>,
-    ws_provider: Option<Url>,
-    poll_interval: Option<Duration>,
+    http_provider_url: Option<Url>,
+    http_provider_client: Option<Box<dyn Provider>>,
+    ws_provider_client: Option<Box<dyn Provider>>,
+    ws_provider_url: Option<Url>,
+    fetch_interval: Option<Duration>,
+    overtake_interval: Option<Duration>,
     filter: Option<Filter>,
     processor: Option<P>,
     storage: Option<S>,
@@ -28,9 +31,12 @@ pub struct IndexerBuilder<S: LogStorage, P: Processor<S::Transaction>> {
 impl<S: LogStorage, P: Processor<S::Transaction>> Default for IndexerBuilder<S, P> {
     fn default() -> Self {
         Self {
-            http_provider: None,
-            ws_provider: None,
-            poll_interval: None,
+            http_provider_client: None,
+            http_provider_url: None,
+            ws_provider_client: None,
+            ws_provider_url: None,
+            fetch_interval: None,
+            overtake_interval: None,
             filter: None,
             processor: None,
             storage: None,
@@ -56,7 +62,12 @@ impl<P: Processor<sqlx::Transaction<'static, Sqlite>>> IndexerBuilder<SqlitePool
 
 impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
     pub fn http_rpc_url(mut self, url: Url) -> Self {
-        self.http_provider = Some(url);
+        self.http_provider_url = Some(url);
+        self
+    }
+
+    pub fn http_provider<H: Into<Box<dyn Provider>>>(mut self, p: H) -> Self {
+        self.http_provider_client = Some(p.into());
         self
     }
 
@@ -75,18 +86,38 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
         self
     }
 
+    pub fn block_range_limit_opt(mut self, limit: Option<u64>) -> Self {
+        self.block_range_limit = limit;
+        self
+    }
+
+    pub fn ws_provider<W: Into<Box<dyn Provider>>>(mut self, p: W) -> Self {
+        self.ws_provider_client = Some(p.into());
+        self
+    }
+
+    pub fn ws_provider_opt<W: Into<Box<dyn Provider>>>(mut self, p: Option<W>) -> Self {
+        self.ws_provider_client = p.map(Into::into);
+        self
+    }
+
     pub fn ws_rpc_url(mut self, url: Url) -> Self {
-        self.ws_provider = Some(url);
+        self.ws_provider_url = Some(url);
         self
     }
 
     pub fn ws_rpc_url_opt(mut self, url: Option<Url>) -> Self {
-        self.ws_provider = url;
+        self.ws_provider_url = url;
+        self
+    }
+
+    pub fn overtake_interval(mut self, interval: Duration) -> Self {
+        self.overtake_interval = Some(interval);
         self
     }
 
     pub fn fetch_interval(mut self, interval: Duration) -> Self {
-        self.poll_interval = Some(interval);
+        self.fetch_interval = Some(interval);
         self
     }
 
@@ -95,41 +126,57 @@ impl<S: LogStorage, P: Processor<S::Transaction>> IndexerBuilder<S, P> {
         self
     }
 
+    //TODO: providers can be generic types not dyns
     pub async fn build(self) -> anyhow::Result<Indexer<S, P>> {
-        let http_url = self
-            .http_provider
-            .ok_or(anyhow!("Http porvider is missing"))?;
-
-        let http_provider = ProviderBuilder::new().connect_http(http_url);
-
-        let ws_provider: Option<Box<dyn Provider>> = match self.ws_provider {
-            Some(url) => Some(Box::new(
-                ProviderBuilder::new()
-                    .connect_ws(WsConnect::new(url.to_string()))
-                    .await
-                    .with_context(|| anyhow!("Failed to connect to rpc via WS"))?,
-            )),
-            None => None,
+        let http_provider = match self.http_provider_client {
+            Some(p) => p,
+            None => {
+                let http_url = self
+                    .http_provider_url
+                    .ok_or(anyhow!("Http porvider is missing"))?;
+                Box::new(ProviderBuilder::new().connect_http(http_url))
+            }
         };
 
-        let processor = self.processor.ok_or(anyhow!("Processor is missing"))?;
+        let ws_provider: Option<Box<dyn Provider>> = match self.ws_provider_client {
+            Some(p) => Some(p),
+            None => match self.ws_provider_url {
+                Some(url) => Some(Box::new(
+                    ProviderBuilder::new()
+                        .connect_ws(WsConnect::new(url.to_string()))
+                        .await
+                        .with_context(|| anyhow!("Failed to connect to rpc via WS"))?,
+                )),
+                None => None,
+            },
+        };
+
+        let log_processor = self.processor.ok_or(anyhow!("Processor is missing"))?;
         let filter = self.filter.ok_or(anyhow!("Filter is missing"))?;
         let fetch_interval = self
-            .poll_interval
+            .fetch_interval
             .ok_or(anyhow!("Fetch interval is missing"))?;
 
         let storage = self.storage.ok_or(anyhow!("Storage is missing"))?;
 
-        Indexer::new(
-            processor,
+        let chain_id = http_provider.get_chain_id().await?;
+
+        let (last_observed_block, filter_id) =
+            storage.get_or_create_filter(&filter, chain_id).await?;
+
+        Ok(Indexer {
+            log_processor,
             filter,
-            Box::new(http_provider),
+            storage,
+            chain_id,
+            filter_id,
+            last_observed_block,
+            http_provider,
             ws_provider,
             fetch_interval,
-            storage,
-            self.block_range_limit,
-            self.finality_level,
-        )
-        .await
+            overtake_interval: self.overtake_interval.unwrap_or(fetch_interval),
+            block_range_limit: self.block_range_limit,
+            finality_level: self.finality_level.into(),
+        })
     }
 }

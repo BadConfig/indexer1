@@ -1,6 +1,21 @@
 # Changelog
 ---
 
+## Version: 0.2.15
+## Date: 05-19-2025
+## Title: Builder improvements and lock rework
+
+### Reworked race safetry. 
+Now race safety uses locks that are created via update sql, making it more fitting sql standart
+
+### Added new methods to builder. 
+Now its possible to add pre built http/ws clients and an optional block range value
+
+### Added overtake interval. 
+A custom interval of sleep that will be used if the current to_block is less then latest block
+
+---
+
 ## Version: 0.2.11
 ## Date: 05-07-2025
 ## Title: race safety

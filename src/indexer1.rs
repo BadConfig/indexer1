@@ -90,52 +90,23 @@ pub fn filter_id(filter: &Filter, chain_id: u64) -> String {
 }
 
 pub struct Indexer<S: LogStorage, P: Processor<S::Transaction>> {
-    chain_id: u64,
-    filter_id: String,
-    filter: Filter,
-    last_observed_block: u64,
-    storage: S,
-    log_processor: P,
-    provider: Box<dyn Provider>,
-    ws_provider: Option<Box<dyn Provider>>,
-    fetch_interval: Duration,
-    block_range_limit: Option<u64>,
-    finality_level: BlockNumberOrTag,
+    pub(crate) chain_id: u64,
+    pub(crate) filter_id: String,
+    pub(crate) filter: Filter,
+    pub(crate) last_observed_block: u64,
+    pub(crate) storage: S,
+    pub(crate) log_processor: P,
+    pub(crate) http_provider: Box<dyn Provider>,
+    pub(crate) ws_provider: Option<Box<dyn Provider>>,
+    pub(crate) fetch_interval: Duration,
+    pub(crate) overtake_interval: Duration,
+    pub(crate) block_range_limit: Option<u64>,
+    pub(crate) finality_level: BlockNumberOrTag,
 }
 
 impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
     pub fn builder() -> IndexerBuilder<S, P> {
         IndexerBuilder::default()
-    }
-
-    pub async fn new(
-        log_processor: P,
-        filter: Filter,
-        provider: Box<dyn Provider>,
-        ws_provider: Option<Box<dyn Provider>>,
-        fetch_interval: Duration,
-        storage: S,
-        block_range_limit: Option<u64>,
-        finality_level: FinalityLevel,
-    ) -> anyhow::Result<Self> {
-        let chain_id = provider.get_chain_id().await?;
-
-        let (last_observed_block, filter_id) =
-            storage.get_or_create_filter(&filter, chain_id).await?;
-
-        Ok(Self {
-            log_processor,
-            filter,
-            storage,
-            chain_id,
-            filter_id,
-            last_observed_block,
-            provider,
-            ws_provider,
-            fetch_interval,
-            block_range_limit,
-            finality_level: finality_level.into(),
-        })
     }
 
     pub async fn run(mut self) -> anyhow::Result<()> {
@@ -151,7 +122,14 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             }
 
             log::debug!("Starting to handle tick");
-            self.handle_tick().await?;
+            loop {
+                let did_reach_latest_block = self.handle_tick().await?;
+                if did_reach_latest_block {
+                    break;
+                } else {
+                    tokio::time::sleep(self.overtake_interval).await;
+                }
+            }
         }
 
         Ok(())
@@ -170,17 +148,17 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
         Ok(Box::new(subscription.into_stream()))
     }
 
-    async fn handle_tick(&mut self) -> anyhow::Result<()> {
+    async fn handle_tick(&mut self) -> anyhow::Result<bool> {
         let from_block = self.last_observed_block + 1;
         let latest_block = self
-            .provider
+            .http_provider
             .get_block_by_number(self.finality_level)
             .await?
             .context("No finalized block")?
             .header
             .number;
         if self.last_observed_block == latest_block {
-            return Ok(()); // in case of no new blocks
+            return Ok(true); // in case of no new blocks
         }
         let to_block = self
             .block_range_limit
@@ -194,7 +172,7 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             .to_block(alloy::eips::BlockNumberOrTag::Number(to_block));
 
         log::debug!("Fetching logs from {} to {}", from_block, to_block);
-        let logs = self.provider.get_logs(&filter).await?;
+        let logs = self.http_provider.get_logs(&filter).await?;
 
         log::debug!("Updating storage ");
         self.storage
@@ -209,6 +187,6 @@ impl<S: LogStorage, P: Processor<S::Transaction>> Indexer<S, P> {
             .await?;
 
         self.last_observed_block = to_block;
-        Ok(())
+        Ok(to_block == latest_block)
     }
 }

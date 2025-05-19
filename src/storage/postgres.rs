@@ -19,19 +19,8 @@ impl LogStorage for Pool<Postgres> {
     ) -> anyhow::Result<()> {
         let mut transaction = self.begin().await?;
 
-        let prev_block_in_db: u64 = sqlx::query(include_str!("sql/get_filter_for_update.sql"))
-            .bind(filter_id)
-            .fetch_one(&mut *transaction)
-            .await
-            .map(|v| v.get::<i64, _>("last_observed_block"))?
-            .try_into()?;
-
-        if prev_saved_block != prev_block_in_db + 1 {
-            bail!("Inconsistency in block commitement");
-        }
-
         sqlx::query(include_str!("sql/update_filter.sql"))
-            .bind::<i64>(new_saved_block.try_into()?)
+            .bind::<i64>((new_saved_block - prev_saved_block).try_into()?)
             .bind(filter_id)
             .execute(&mut *transaction)
             .await?;
@@ -45,6 +34,17 @@ impl LogStorage for Pool<Postgres> {
                 chain_id,
             )
             .await?;
+
+        let new_block_in_db: u64 = sqlx::query(include_str!("sql/get_filter.sql"))
+            .bind(filter_id)
+            .fetch_one(&mut *transaction)
+            .await
+            .map(|v| v.get::<i64, _>("last_observed_block"))?
+            .try_into()?;
+
+        if new_saved_block != new_block_in_db {
+            bail!("Inconsistency in block commitement");
+        }
 
         transaction.commit().await.map_err(Into::into)
     }
