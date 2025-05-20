@@ -2125,7 +2125,7 @@ dependencies = [
 
 [[package]]
 name = "indexer1"
-version = "0.2.17"
+version = "0.2.18"
 dependencies = [
  "alloy",
  "anyhow",

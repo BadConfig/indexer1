@@ -32,7 +32,11 @@ impl LogStorage for Pool<Postgres> {
             .execute(&mut *transaction)
             .await?;
         if rows.rows_affected() != 1 {
-            bail!("Inconsistency in block commitement");
+            bail!(
+                "Inconsistency in block commitement prev block {}, new block {}",
+                prev_saved_block,
+                new_saved_block
+            );
         }
 
         log_processor
