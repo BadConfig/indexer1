@@ -20,11 +20,15 @@ impl LogStorage for Pool<Sqlite> {
     ) -> anyhow::Result<()> {
         let mut transaction = self.begin().await?;
 
-        sqlx::query(include_str!("sql/update_filter.sql"))
-            .bind::<i64>((new_saved_block - prev_saved_block).try_into()?)
+        let rows = sqlx::query(include_str!("sql/update_filter.sql"))
+            .bind::<i64>(new_saved_block.try_into()?)
+            .bind::<i64>(prev_saved_block.try_into()?)
             .bind(filter_id)
             .execute(&mut *transaction)
             .await?;
+        if rows.rows_affected() != 1 {
+            bail!("Inconsistency in block commitement");
+        }
 
         log_processor
             .process(
@@ -35,17 +39,6 @@ impl LogStorage for Pool<Sqlite> {
                 chain_id,
             )
             .await?;
-
-        let new_block_in_db: u64 = sqlx::query(include_str!("sql/get_filter.sql"))
-            .bind(filter_id)
-            .fetch_one(&mut *transaction)
-            .await
-            .map(|v| v.get::<i64, _>("last_observed_block"))?
-            .try_into()?;
-
-        if new_saved_block != new_block_in_db {
-            bail!("Inconsistency in block commitement");
-        }
 
         transaction.commit().await.map_err(Into::into)
     }
