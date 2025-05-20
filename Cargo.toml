@@ -1,6 +1,6 @@
 [package]
 name = "indexer1"
-version = "0.2.18"
+version = "0.2.19"
 edition = "2021"
 authors = ["BadConfig <array.clean@gmail.com>"]
 description = "A library that is used to collect events from EVM compatible blockchain"

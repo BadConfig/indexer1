@@ -19,6 +19,8 @@ impl LogStorage for Pool<Postgres> {
     ) -> anyhow::Result<()> {
         let mut transaction = self.begin().await?;
 
+        let prev_saved_block = prev_saved_block - 1;
+
         if let Some(b) = logs.iter().map(|l| l.block_number.unwrap()).max() {
             if b > new_saved_block {
                 bail!("Inconsistency in block commitement range");
